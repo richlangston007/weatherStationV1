@@ -3,6 +3,40 @@
 #include <Adafruit_BMP085_U.h>
 #include "Adafruit_LEDBackpack.h"
 #include "Adafruit_GFX.h"
+// RTC stuff from ds3231 example
+#include <SPI.h>
+#include <RTClib.h>
+#include <RTC_DS3231.h>
+
+RTC_DS3231 RTC;
+#define SQW_FREQ DS3231_SQW_FREQ_1024     //0b00001000   1024Hz
+#define PWM_COUNT 1020   //determines how often the LED flips
+#define LOOP_DELAY 5000 //ms delay time in loop
+
+#define RTC_SQW_IN 5     // input square wave from RTC into T1 pin (D5)
+                               //WE USE TIMER1 so that it does not interfere with Arduino delay() command
+#define INT0_PIN   2     // INT0 pin for 32kHz testing?
+#define LED_PIN    9     // random LED for testing...tie to ground through series resistor..
+#define LED_ONBAORD 13   // Instead of hooking up an LED, the nano has an LED at pin 13.
+
+//----------- GLOBALS  -------------------------
+
+volatile long TOGGLE_COUNT = 0;
+    
+ISR(TIMER1_COMPA_vect) {
+  //digitalWrite(LED_PIN, !digitalRead(LED_PIN));      // ^ 1);
+  digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+  digitalWrite(LED_ONBAORD, !digitalRead(LED_ONBAORD)); //useful on nano's and some other 'duino's
+  TOGGLE_COUNT++;
+}    
+
+ISR(INT0_vect) {
+  // Do something here
+  //digitalWrite(LED_PIN, !digitalRead(LED_PIN));      // ^ 1);
+   //TOGGLE_COUNT++;
+}
+
+// end RTC stuff
 
 Adafruit_7segment matrix = Adafruit_7segment();
 Adafruit_7segment matrix1 = Adafruit_7segment();
@@ -78,6 +112,43 @@ void setup(void)
   displaySensorDetails();
   matrix.begin(0x71);
   matrix1.begin(0x72);
+//RTC stuff
+    pinMode(RTC_SQW_IN, INPUT);
+    pinMode(INT0_PIN, INPUT);
+    if (! RTC.isrunning()) {
+      Serial.println("RTC is NOT running!");
+      // following line sets the RTC to the date & time this sketch was compiled
+      RTC.adjust(DateTime(__DATE__, __TIME__));
+    }
+  
+    DateTime now = RTC.now();
+    DateTime compiled = DateTime(__DATE__, __TIME__);
+    if (now.unixtime() < compiled.unixtime()) {
+      //Serial.println("RTC is older than compile time!  Updating");
+      RTC.adjust(DateTime(__DATE__, __TIME__));
+    }
+    
+    RTC.enable32kHz(true);
+    RTC.SQWEnable(true);
+    RTC.BBSQWEnable(true);
+    RTC.SQWFrequency( SQW_FREQ );
+  
+    char datastr[100];
+    RTC.getControlRegisterData( datastr[0]  );
+    Serial.print(  datastr );
+ 
+  
+  
+    //--------INT 0---------------
+    EICRA = 0;      //clear it
+    EICRA |= (1 << ISC01);
+    EICRA |= (1 << ISC00);   //ISC0[1:0] = 0b11  rising edge INT0 creates interrupt
+    EIMSK |= (1 << INT0);    //enable INT0 interrupt
+        
+    //--------COUNTER 1 SETUP -------
+    setupTimer1ForCounting((int)PWM_COUNT); 
+    printTimer1Info();   
+//end RTC stuff
 }
 
 /**************************************************************************/
