@@ -95,6 +95,7 @@ void displaySensorDetails(void)
     Arduino setup function (automatically called at startup)
 */
 /**************************************************************************/
+
 void setup(void) 
 {
   Serial.begin(9600);
@@ -159,6 +160,22 @@ void setup(void)
 /**************************************************************************/
 void loop(void) 
 {
+      DateTime now = RTC.now();
+  Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(' ');
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.println();
+ 
+ 
+ 
   /* Get a new sensor event */ 
   float temperature;
   float tempF;
