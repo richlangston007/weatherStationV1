@@ -40,6 +40,8 @@ ISR(INT0_vect) {
 
 Adafruit_7segment matrix = Adafruit_7segment();
 Adafruit_7segment matrix1 = Adafruit_7segment();
+Adafruit_7segment matrixBig = Adafruit_7segment();
+Adafruit_BicolorMatrix matrix8 = Adafruit_BicolorMatrix();
 
 /* This driver uses the Adafruit unified sensor library (Adafruit_Sensor),
    which provides a common 'type' for sensor data and some helper functions.
@@ -96,6 +98,11 @@ void displaySensorDetails(void)
 */
 /**************************************************************************/
 
+float temp[8];
+int blocks[8];
+float temperature;
+float tempF;
+sensors_event_t event;
 void setup(void) 
 {
   Serial.begin(9600);
@@ -112,7 +119,26 @@ void setup(void)
   /* Display some basic information on this sensor */
   displaySensorDetails();
   matrix.begin(0x71);
+  matrixBig.begin(0x70);
   matrix1.begin(0x72);
+  matrix8.begin(0x74);  // pass in the address
+  matrix8.clear();      // clear display
+  matrix8.drawPixel(0, 4, LED_GREEN); //Draw the initial temp trend line
+  matrix8.drawPixel(1, 4, LED_GREEN);  
+  matrix8.drawPixel(2, 4, LED_GREEN);  
+  matrix8.drawPixel(3, 4, LED_GREEN);  
+  matrix8.drawPixel(4, 4, LED_GREEN);  
+  matrix8.drawPixel(5, 4, LED_GREEN);  
+  matrix8.drawPixel(6, 4, LED_GREEN);  
+  matrix8.drawPixel(7, 4, LED_GREEN);           
+  matrix8.writeDisplay();  // write the changes we just made to the display
+  bmp.getEvent(&event);
+  bmp.getTemperature(&temperature);
+  tempF=((temperature*9/5)+32);
+  for (int x=0; x<9; x++) {
+    temp[x]=tempF;
+    blocks[x]=0;
+  }
 //RTC stuff
     pinMode(RTC_SQW_IN, INPUT);
     pinMode(INT0_PIN, INPUT);
@@ -161,11 +187,11 @@ void setup(void)
 void loop(void) 
 {
       DateTime now = RTC.now();
-  Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
+ // Serial.print(now.year(), DEC);
+ //   Serial.print('/');
+ //   Serial.print(now.month(), DEC);
+ //   Serial.print('/');
+ //   Serial.print(now.day(), DEC);
     Serial.print(' ');
     Serial.print(now.hour(), DEC);
     Serial.print(':');
@@ -177,9 +203,7 @@ void loop(void)
  
  
   /* Get a new sensor event */ 
-  float temperature;
-  float tempF;
-  sensors_event_t event;
+  
   bmp.getEvent(&event);
  
   /* Display the results (barometric pressure is measure in hPa) */
@@ -230,9 +254,14 @@ void loop(void)
   matrix1.print(tempF);
   matrix.writeDisplay();
   matrix1.writeDisplay();
+  matrixBig.print(now.second(),DEC);
+  matrixBig.drawColon(1);
+//  matrixBig.print(tempF);
+
+  matrixBig.writeDisplay();
   delay(1000);
 }
-
+//==========================end void()
 
 //#########################################################
 // TIMER/COUNTER CONTROLS 
