@@ -254,7 +254,9 @@ void loop(void)
   matrix1.writeDisplay();
   matrix8.writeDisplay();
   matrixBig.print(now.minute(),DEC);
-  matrixBig.print(now.hour()*100+now.minute(),DEC);
+  int timeNow=now.hour()*100+now.minute();
+  if (now.hour()>12) timeNow=timeNow-1200;
+  matrixBig.print(timeNow,DEC);
   matrixBig.drawColon(1);
   if (now.hour()>11)
   	matrixBig.writeDigitRaw(2,0x06);
