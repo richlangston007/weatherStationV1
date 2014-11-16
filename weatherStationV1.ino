@@ -42,6 +42,7 @@ Adafruit_7segment matrix = Adafruit_7segment();
 Adafruit_7segment matrix1 = Adafruit_7segment();
 Adafruit_7segment matrixBig = Adafruit_7segment();
 Adafruit_BicolorMatrix matrix8 = Adafruit_BicolorMatrix();
+Adafruit_24bargraph bar = Adafruit_24bargraph();
 
 /* This driver uses the Adafruit unified sensor library (Adafruit_Sensor),
    which provides a common 'type' for sensor data and some helper functions.
@@ -102,6 +103,8 @@ float temp[8];
 int blocks[8];
 float temperature;
 float tempF;
+int firstTime=1;
+int c;
 sensors_event_t event;
 void setup(void) 
 {
@@ -121,17 +124,17 @@ void setup(void)
   matrix.begin(0x71);
   matrixBig.begin(0x70);
   matrix1.begin(0x72);
+  bar.begin(0x73);
   matrix8.begin(0x74);  // pass in the address
   matrix8.clear();      // clear display
-  matrix8.drawPixel(0, 4, LED_GREEN); //Draw the initial temp trend line
-  matrix8.drawPixel(1, 4, LED_GREEN);  
-  matrix8.drawPixel(2, 4, LED_GREEN);  
-  matrix8.drawPixel(3, 4, LED_GREEN);  
-  matrix8.drawPixel(4, 4, LED_GREEN);  
-  matrix8.drawPixel(5, 4, LED_GREEN);  
-  matrix8.drawPixel(6, 4, LED_GREEN);  
-  matrix8.drawPixel(7, 4, LED_GREEN);           
+  for (c=0;c<8;c++)
+  	matrix8.drawPixel(c, 4, LED_GREEN); //Draw the initial temp trend line
   matrix8.writeDisplay();  // write the changes we just made to the display
+  //set the bar graph to all off
+  for (c=0;c<24;c++)
+  	bar.setBar(c,LED_OFF);
+  bar.writeDisplay();
+
   bmp.getEvent(&event);
   bmp.getTemperature(&temperature);
   tempF=((temperature*9/5)+32);
@@ -178,12 +181,6 @@ void setup(void)
 //end RTC stuff
 }
 
-/**************************************************************************/
-/*
-    Arduino loop function, called once 'setup' is complete (your own code
-    should go here)
-*/
-/**************************************************************************/
 void loop(void) 
 {
       DateTime now = RTC.now();
@@ -199,6 +196,7 @@ void loop(void)
     Serial.print(':');
     Serial.print(now.second(), DEC);
     Serial.println();
+    Serial.println(now.hour()*100+now.minute());
  
  
  
@@ -254,11 +252,60 @@ void loop(void)
   matrix1.print(tempF);
   matrix.writeDisplay();
   matrix1.writeDisplay();
-  matrixBig.print(now.second(),DEC);
+  matrix8.writeDisplay();
+  matrixBig.print(now.minute(),DEC);
+  matrixBig.print(now.hour()*100+now.minute(),DEC);
   matrixBig.drawColon(1);
-//  matrixBig.print(tempF);
-
+  if (now.hour()>11)
+  	matrixBig.writeDigitRaw(2,0x06);
   matrixBig.writeDisplay();
+  //set the bar graph to all off
+  for (c=0;c<24;c++)
+  	bar.setBar(c,LED_OFF);
+  for (c=0;c<(tempF-61);c++)
+  	if ((tempF-61)<6)
+  		bar.setBar(c,LED_YELLOW);
+  	else if ((tempF-61)>19)
+  		bar.setBar(c,LED_RED);
+  	else bar.setBar(c,LED_GREEN);
+  bar.writeDisplay();
+// move the trend graph
+  int secs=now.second();
+  if ((secs==0) && (firstTime==1)) {
+    for (int x=0; x<8; x++ ){
+      temp[x]=temp[x+1];
+      blocks[x]=blocks[x+1];
+    
+    }
+    temp[7]=tempF;
+  //  blocks[8]=blocks[7]+(temp[8]-temp[7]);
+    //blocks[7]=blocks[6]+1;
+    blocks[7]=temp[7]-temp[6];
+    matrix8.clear();
+    for (int x=0; x<8; x++ ){
+      if (blocks[x]==0) {
+        matrix8.drawPixel(x,4,LED_GREEN);
+      } else {
+          if (blocks[x]>0) {
+            matrix8.drawPixel(x,4+blocks[x],LED_GREEN);
+          //  blocks[x]--;
+          }
+          if (blocks[x]<0) {
+            matrix8.drawPixel(x,4-blocks[x],LED_GREEN);
+          //  blocks[x]++;
+          }
+       }
+	Serial.print("x ");
+	Serial.print(x);
+	Serial.print(" blocks[x] ");
+	Serial.print(blocks[x]); 
+	Serial.print(" temp[x] ");
+	Serial.println(temp[x]); 
+}
+//matrix8.writeDisplay();
+    firstTime=0;
+}
+  if (secs==1) firstTime=1;
   delay(1000);
 }
 //==========================end void()
