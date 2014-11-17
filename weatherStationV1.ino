@@ -42,7 +42,9 @@ Adafruit_7segment matrix = Adafruit_7segment();
 Adafruit_7segment matrix1 = Adafruit_7segment();
 Adafruit_7segment matrixBig = Adafruit_7segment();
 Adafruit_BicolorMatrix matrix8 = Adafruit_BicolorMatrix();
-Adafruit_24bargraph bar = Adafruit_24bargraph();
+Adafruit_24bargraph tempBar = Adafruit_24bargraph();
+Adafruit_24bargraph baroBar = Adafruit_24bargraph();
+
 
 /* This driver uses the Adafruit unified sensor library (Adafruit_Sensor),
    which provides a common 'type' for sensor data and some helper functions.
@@ -124,16 +126,17 @@ void setup(void)
   matrix.begin(0x71);
   matrixBig.begin(0x70);
   matrix1.begin(0x72);
-  bar.begin(0x73);
+  tempBar.begin(0x73);
   matrix8.begin(0x74);  // pass in the address
+  baroBar.begin(0x75);
   matrix8.clear();      // clear display
   for (c=0;c<8;c++)
   	matrix8.drawPixel(c, 4, LED_GREEN); //Draw the initial temp trend line
   matrix8.writeDisplay();  // write the changes we just made to the display
   //set the bar graph to all off
   for (c=0;c<24;c++)
-  	bar.setBar(c,LED_OFF);
-  bar.writeDisplay();
+  	tempBar.setBar(c,LED_OFF);
+  tempBar.writeDisplay();
 
   bmp.getEvent(&event);
   bmp.getTemperature(&temperature);
@@ -247,11 +250,14 @@ void loop(void)
   {
     Serial.println("Sensor error");
   }
-  matrix.print(event.pressure/33.86);
-  tempF=((temperature*9/5)+32);
-  matrix1.print(tempF);
-  matrix.writeDisplay();
+  float pressureInches=event.pressure/33.86; //convert to inches of mercury
+  matrix1.print(pressureInches); //print barometric pressure
+  //matrix1.writeDigitRaw(4,B10000100);
+  tempF=((temperature*9/5)+32); //Let's use Farenheit
+  matrix.print(tempF); //set the temperature dispaly
+  matrix.writeDigitRaw(4,113); //add the "F" at the end
   matrix1.writeDisplay();
+  matrix.writeDisplay();
   matrix8.writeDisplay();
   matrixBig.print(now.minute(),DEC);
   int timeNow=now.hour()*100+now.minute();
@@ -261,16 +267,29 @@ void loop(void)
   if (now.hour()>11)
   	matrixBig.writeDigitRaw(2,0x06);
   matrixBig.writeDisplay();
-  //set the bar graph to all off
+  //set the bar graphs to all off
   for (c=0;c<24;c++)
-  	bar.setBar(c,LED_OFF);
+  	baroBar.setBar(c,LED_OFF);
+  for (c=0;c<24;c++)
+  	tempBar.setBar(c,LED_OFF);
+ //paint the pixels for the temperature bar
   for (c=0;c<(tempF-61);c++)
   	if ((tempF-61)<6)
-  		bar.setBar(c,LED_YELLOW);
+  		tempBar.setBar(23-c,LED_YELLOW);
   	else if ((tempF-61)>19)
-  		bar.setBar(c,LED_RED);
-  	else bar.setBar(c,LED_GREEN);
-  bar.writeDisplay();
+  		tempBar.setBar(23-c,LED_RED);
+  	else tempBar.setBar(23-c,LED_GREEN);
+  tempBar.writeDisplay();
+//barometric preassure bar
+int baroElements= round((pressureInches-29)*10);
+Serial.print("baroElements ");
+Serial.println(baroElements);
+  for (c=0;c<baroElements;c++)
+  	if (baroElements<6)
+  		baroBar.setBar(32-c,LED_RED);
+  	else
+  		baroBar.setBar(23-c,LED_YELLOW);
+ baroBar.writeDisplay();
 // move the trend graph
   int secs=now.second();
   if ((secs==0) && (firstTime==1)) {
