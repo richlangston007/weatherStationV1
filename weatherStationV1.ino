@@ -14,10 +14,11 @@ RTC_DS3231 RTC;
 #define LOOP_DELAY 5000 //ms delay time in loop
 
 #define RTC_SQW_IN 5     // input square wave from RTC into T1 pin (D5)
-                               //WE USE TIMER1 so that it does not interfere with Arduino delay() command
+                         // WE USE TIMER1 so that it does not interfere with Arduino delay() command
 #define INT0_PIN   2     // INT0 pin for 32kHz testing?
 #define LED_PIN    9     // random LED for testing...tie to ground through series resistor..
 #define LED_ONBAORD 13   // Instead of hooking up an LED, the nano has an LED at pin 13.
+#define DST_SWITCH 6 //Pin 7 is connected to the daylight savings time switch
 
 //----------- GLOBALS  -------------------------
 
@@ -102,6 +103,7 @@ void displaySensorDetails(void)
 /**************************************************************************/
 
 float temp[8];
+float baro[8];
 int blocks[8];
 float temperature;
 float tempF;
@@ -120,12 +122,13 @@ void setup(void)
     Serial.print("Ooops, no BMP085 detected ... Check your wiring or I2C ADDR!");
     while(1);
   }
-  
+  pinMode(DST_SWITCH,INPUT_PULLUP);
   /* Display some basic information on this sensor */
   displaySensorDetails();
+  // initialize the various LED toys with their serial addresses
   matrix.begin(0x71);
-  matrixBig.begin(0x70);
-  matrix1.begin(0x72);
+  matrixBig.begin(0x72);
+  matrix1.begin(0x70);
   tempBar.begin(0x73);
   matrix8.begin(0x74);  // pass in the address
   baroBar.begin(0x75);
@@ -145,7 +148,7 @@ void setup(void)
     temp[x]=tempF;
     blocks[x]=0;
   }
-//RTC stuff
+//Real Time Clock  stuff
     pinMode(RTC_SQW_IN, INPUT);
     pinMode(INT0_PIN, INPUT);
     if (! RTC.isrunning()) {
@@ -186,12 +189,7 @@ void setup(void)
 
 void loop(void) 
 {
-      DateTime now = RTC.now();
- // Serial.print(now.year(), DEC);
- //   Serial.print('/');
- //   Serial.print(now.month(), DEC);
- //   Serial.print('/');
- //   Serial.print(now.day(), DEC);
+    DateTime now = RTC.now();
     Serial.print(' ');
     Serial.print(now.hour(), DEC);
     Serial.print(':');
@@ -199,7 +197,7 @@ void loop(void)
     Serial.print(':');
     Serial.print(now.second(), DEC);
     Serial.println();
-    Serial.println(now.hour()*100+now.minute());
+    Serial.print(now.hour()*100+now.minute());
  
  
  
@@ -211,68 +209,65 @@ void loop(void)
   if (event.pressure)
   {
     /* Display atmospheric pressue in hPa */
-    Serial.print("Pressure:    ");
+    Serial.print("  Pressure:    ");
     Serial.print(event.pressure/33.86);
-    Serial.println(" in");
-    
-    /* Calculating altitude with reasonable accuracy requires pressure    *
-     * sea level pressure for your position at the moment the data is     *
-     * converted, as well as the ambient temperature in degress           *
-     * celcius.  If you don't have these values, a 'generic' value of     *
-     * 1013.25 hPa can be used (defined as SENSORS_PRESSURE_SEALEVELHPA   *
-     * in sensors.h), but this isn't ideal and will give variable         *
-     * results from one day to the next.                                  *
-     *                                                                    *
-     * You can usually find the current SLP value by looking at weather   *
-     * websites or from environmental information centers near any major  *
-     * airport.                                                           *
-     *                                                                    *
-     * For example, for Paris, France you can check the current mean      *
-     * pressure and sea level at: http://bit.ly/16Au8ol                   */
+    Serial.print(" in");
+ 	Serial.print("  DST Switch- ");
+
      
     /* First we get the current temperature from the BMP085 */
     
     bmp.getTemperature(&temperature);
-    Serial.print("Temperature: ");
+    Serial.print("  Temperature: ");
     Serial.print(temperature);
-    Serial.println(" C");
+    Serial.print(" C");
 
     /* Then convert the atmospheric pressure, and SLP to altitude         */
     /* Update this next line with the current SLP for better results      */
     float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
-    Serial.print("Altitude:    "); 
+    Serial.print("  Altitude:    "); 
     Serial.print(bmp.pressureToAltitude(seaLevelPressure,
                                         event.pressure)); 
-    Serial.println(" m");
+    Serial.print(" m  ");
     Serial.println("");
   }
   else
   {
     Serial.println("Sensor error");
   }
+  //
+  // Deal with temp and pressure displays
+  //
   float pressureInches=event.pressure/33.86; //convert to inches of mercury
   matrix1.print(pressureInches); //print barometric pressure
-  //matrix1.writeDigitRaw(4,B10000100);
   tempF=((temperature*9/5)+32); //Let's use Farenheit
-  matrix.print(tempF); //set the temperature dispaly
+  matrix.print(tempF); //set the temperature display
   matrix.writeDigitRaw(4,113); //add the "F" at the end
   matrix1.writeDisplay();
   matrix.writeDisplay();
   matrix8.writeDisplay();
-  matrixBig.print(now.minute(),DEC);
+  //
+  // Now the time
+  //
+  int dst=(digitalRead(DST_SWITCH));
   int timeNow=now.hour()*100+now.minute();
-  if (now.hour()>12) timeNow=timeNow-1200;
+  if (dst==1) timeNow=timeNow+100;
+  if (timeNow>1259) timeNow=timeNow-1200;
+  //if (readPin(DST_SWITCH)==1) timeNow=timeNow+1;
   matrixBig.print(timeNow,DEC);
   matrixBig.drawColon(1);
   if (now.hour()>11)
   	matrixBig.writeDigitRaw(2,0x06);
   matrixBig.writeDisplay();
+  //
   //set the bar graphs to all off
   for (c=0;c<24;c++)
   	baroBar.setBar(c,LED_OFF);
   for (c=0;c<24;c++)
   	tempBar.setBar(c,LED_OFF);
+ //
  //paint the pixels for the temperature bar
+ //
   for (c=0;c<(tempF-61);c++)
   	if ((tempF-61)<6)
   		tempBar.setBar(23-c,LED_YELLOW);
@@ -280,27 +275,34 @@ void loop(void)
   		tempBar.setBar(23-c,LED_RED);
   	else tempBar.setBar(23-c,LED_GREEN);
   tempBar.writeDisplay();
-//barometric preassure bar
+//
+//now the pressure bar
+//
 int baroElements= round((pressureInches-29)*10);
-Serial.print("baroElements ");
-Serial.println(baroElements);
-  for (c=0;c<baroElements;c++)
+Serial.print("  baroElements ");
+Serial.print(baroElements);
+ /* for (c=0;c<baroElements;c++)
   	if (baroElements<6)
   		baroBar.setBar(32-c,LED_RED);
   	else
   		baroBar.setBar(23-c,LED_YELLOW);
+ */
+ baroBar.setBar(baroElements,LED_RED);
  baroBar.writeDisplay();
+//
+//
 // move the trend graph
+//
   int secs=now.second();
   if ((secs==0) && (firstTime==1)) {
     for (int x=0; x<8; x++ ){
       temp[x]=temp[x+1];
+      baro[x]=baro[x+1];
       blocks[x]=blocks[x+1];
     
     }
     temp[7]=tempF;
-  //  blocks[8]=blocks[7]+(temp[8]-temp[7]);
-    //blocks[7]=blocks[6]+1;
+  
     blocks[7]=temp[7]-temp[6];
     matrix8.clear();
     for (int x=0; x<8; x++ ){
@@ -327,7 +329,7 @@ Serial.println(baroElements);
     firstTime=0;
 }
   if (secs==1) firstTime=1;
-  delay(1000);
+  delay(500);
 }
 //==========================end void()
 
