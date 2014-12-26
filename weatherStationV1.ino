@@ -128,6 +128,7 @@ void setup(void)
   // initialize the various LED toys with their serial addresses
   matrix.begin(0x71);
   matrixBig.begin(0x72);
+  matrixBig.setBrightness(12);
   matrix1.begin(0x70);
   tempBar.begin(0x73);
   matrix8.begin(0x74);  // pass in the address
@@ -258,6 +259,10 @@ void loop(void)
   matrixBig.drawColon(1);
   if (now.hour()>11)
   	matrixBig.writeDigitRaw(2,0x06);
+  if (now.hour()==0) {
+  	matrixBig.writeDigitNum(0,0);
+  	matrixBig.writeDigitNum(1,0);
+  }
   matrixBig.writeDisplay();
   //
   //set the bar graphs to all off
